@@ -53,14 +53,14 @@ class ProgressTracker:
     """Tracks progress of workflow execution"""
     
     WORKFLOW_STEPS = [
-        "研究計画策定",
-        "検索クエリ生成", 
-        "論文検索",
-        "論文翻訳",
-        "フルテキスト処理",
-        "論文分析",
-        "レポート生成",
-        "結果保存"
+        "plan_research",
+        "generate_queries", 
+        "search_papers",
+        "translate_pdfs",
+        "process_fulltext",
+        "analyze",
+        "generate_report",
+        "save_results"
     ]
     
     def __init__(self):
@@ -84,13 +84,26 @@ class ProgressTracker:
                 if "total_items" in details:
                     step.total_items = details["total_items"]
     
-    def update_step(self, step_name: str, current_item: Optional[str] = None, 
-                   details: Optional[Dict[str, Any]] = None):
+    def update_step(self, step_name: str, status: Optional[StepStatus] = None,
+                   current_item: Optional[str] = None, 
+                   details: Optional[Dict[str, Any]] = None,
+                   total_items: Optional[int] = None,
+                   completed_items: Optional[int] = None):
         """Update progress of a step"""
         if step_name in self.steps:
             step = self.steps[step_name]
+            if status is not None:
+                step.status = status
+                if status == StepStatus.IN_PROGRESS and step.start_time is None:
+                    step.start_time = time.time()
+                elif status == StepStatus.COMPLETED:
+                    step.end_time = time.time()
             if current_item:
                 step.current_item = current_item
+            if total_items is not None:
+                step.total_items = total_items
+            if completed_items is not None:
+                step.completed_items = completed_items
             if details:
                 step.details.update(details)
                 if "completed_items" in details:
@@ -141,6 +154,10 @@ class ProgressTracker:
             if step.status == StepStatus.IN_PROGRESS:
                 return step
         return None
+    
+    def mark_complete(self):
+        """Mark the entire workflow as complete"""
+        self.is_complete = True
     
     def get_status_summary(self) -> Dict[str, Any]:
         """Get a summary of the current status"""

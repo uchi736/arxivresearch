@@ -36,16 +36,6 @@ class DocumentChunk:
     embedding: Optional[np.ndarray] = None
 
 
-@dataclass
-class ExtractedClaim:
-    """Extracted claim or key point from text"""
-    claim: str
-    evidence: str
-    section: str
-    page_num: int
-    confidence: float = 1.0
-
-
 # --- Pydantic Models ---
 class PaperMetadata(BaseModel):
     """Paper metadata from arXiv"""
@@ -67,13 +57,14 @@ class SectionContent(BaseModel):
 
 
 class PaperMemory(BaseModel):
-    """Paper memory state for RAG system"""
+    """Paper memory state for processing"""
     paper_id: str
     sections: Dict[str, SectionContent]
-    claims: List[ExtractedClaim]
     chunks: List[DocumentChunk]
-    coverage_map: Dict[str, float]  # Section coverage
-    token_budget_used: int
+    claims: List[Any] = Field(default_factory=list)
+    coverage_map: Dict[str, float] = Field(default_factory=dict)
+    token_budget_used: int = Field(default=0)
+    full_text: Optional[str] = Field(default=None)  # Full text for Map-Reduce analysis
 
     class Config:
         arbitrary_types_allowed = True
@@ -95,6 +86,34 @@ class ResearchPlan(BaseModel):
     focus_areas: List[str]
     full_text_analysis: bool = Field(default=True)
     analysis_depth: Literal["shallow", "moderate", "deep"] = Field(default="moderate")
+
+
+class ImprovedResearchPlan(BaseModel):
+    """Enhanced research plan with multilingual support and dynamic parameters"""
+    # Original query information
+    original_query: str = Field(..., description="Original user query (can be in Japanese)")
+    translated_query: str = Field(..., description="English translation of the query")
+    query_language: str = Field(default="ja", description="Language code of original query")
+    
+    # Search strategy
+    search_keywords: Dict[str, List[str]] = Field(..., description="Categorized search keywords")
+    synonyms: Dict[str, List[str]] = Field(default_factory=dict, description="Synonyms for main keywords")
+    arxiv_categories: List[str] = Field(default_factory=list, description="Relevant arXiv categories")
+    
+    # Dynamic analysis settings
+    num_papers: int = Field(ge=1, le=50, description="Number of papers to analyze")
+    analysis_depth: Literal["shallow", "moderate", "deep"] = Field(..., description="Analysis depth")
+    time_range: Literal["recent", "foundational", "all"] = Field(default="all", description="Time range for papers")
+    
+    # Legacy compatibility
+    main_topic: str = Field(..., description="Main research topic")
+    sub_topics: List[str] = Field(..., description="Sub-topics to explore")
+    focus_areas: List[str] = Field(..., description="Specific areas to focus on")
+    full_text_analysis: bool = Field(default=True, description="Whether to analyze full text")
+    
+    # Metadata
+    confidence_score: float = Field(ge=0.0, le=1.0, default=0.8, description="Confidence in the plan")
+    plan_reasoning: str = Field(default="", description="Reasoning behind the plan")
 
 
 class OchiaiFormatAdvanced(BaseModel):
@@ -136,18 +155,6 @@ class ReproducibilityChecklist(BaseModel):
     """Complete reproducibility assessment"""
     items: List[ReproducibilityItem]
     overall_score: float = Field(..., description="Score from 0.0 to 1.0", ge=0.0, le=1.0)
-
-
-# --- Analysis Results ---
-class AnalysisResult(BaseModel):
-    """Result of paper analysis"""
-    metadata: PaperMetadata
-    analysis: OchiaiFormatAdvanced
-    analysis_type: str = Field(default="advanced_rag")
-    coverage: Dict[str, float] = Field(default_factory=dict)
-    tokens_used: int = Field(default=0, ge=0)
-    num_claims: int = Field(default=0, ge=0)
-    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
 # --- Constants and Mappings ---

@@ -11,7 +11,7 @@ from src.core.models import SearchQuery, PaperMetadata
 
 def search_arxiv_papers(query: SearchQuery) -> List[PaperMetadata]:
     """
-    Search arXiv API for papers
+    Search arXiv API for papers with improved query construction
     
     Args:
         query: SearchQuery object with search parameters
@@ -19,10 +19,25 @@ def search_arxiv_papers(query: SearchQuery) -> List[PaperMetadata]:
     Returns:
         List of PaperMetadata objects
     """
-    # Build search query
-    search_query = " AND ".join([f'all:"{kw}"' for kw in query.keywords])
+    # Build search query with more targeted approach
+    keyword_queries = []
+    for kw in query.keywords:
+        # Search in title AND abstract (more targeted than 'all:')
+        keyword_queries.append(f'(ti:"{kw}" OR abs:"{kw}")')
+    
+    # Use OR between keywords for broader results
+    search_query = " OR ".join(keyword_queries)
+    
+    # Add category constraint
     if query.category:
         search_query += f" AND cat:{query.category}"
+    else:
+        # For AI agent queries, default to relevant CS categories
+        if any("agent" in kw.lower() or "AI" in kw or "evaluation" in kw.lower() 
+               for kw in query.keywords):
+            ai_categories = ["cs.AI", "cs.LG", "cs.CL", "cs.MA", "cs.RO", "cs.HC"]
+            category_filter = " OR ".join([f"cat:{cat}" for cat in ai_categories])
+            search_query += f" AND ({category_filter})"
 
     # Map sort criteria
     sort_by_map = {
