@@ -169,9 +169,50 @@ JSON形式で、各項目を詳細に記述してください。
 [以下、OCHIAI_SYNTHESIS_PROMPTと同じフォーマット指示]
 """
     
+    def count_tokens(self, text: str) -> int:
+        """Rough token count estimation (1 token ≈ 4 characters for Japanese/English mixed)"""
+        return len(text) // 3  # Conservative estimate for mixed content
+
+    def chunk_text(self, text: str, max_tokens: int = 25000) -> List[str]:
+        """Split text into chunks that fit within token limits"""
+        if self.count_tokens(text) <= max_tokens:
+            return [text]
+        
+        # Split by paragraphs first
+        paragraphs = text.split('\n\n')
+        chunks = []
+        current_chunk = ""
+        
+        for paragraph in paragraphs:
+            test_chunk = current_chunk + "\n\n" + paragraph if current_chunk else paragraph
+            if self.count_tokens(test_chunk) <= max_tokens:
+                current_chunk = test_chunk
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk)
+                current_chunk = paragraph
+                
+                # If single paragraph is too long, split by sentences
+                if self.count_tokens(current_chunk) > max_tokens:
+                    sentences = current_chunk.split('. ')
+                    current_chunk = ""
+                    for sentence in sentences:
+                        test_chunk = current_chunk + ". " + sentence if current_chunk else sentence
+                        if self.count_tokens(test_chunk) <= max_tokens:
+                            current_chunk = test_chunk
+                        else:
+                            if current_chunk:
+                                chunks.append(current_chunk)
+                            current_chunk = sentence
+        
+        if current_chunk:
+            chunks.append(current_chunk)
+        
+        return chunks
+
     def analyze_section(self, section_name: str, section_text: str) -> Dict:
         """
-        Analyze a single section (Map phase)
+        Analyze a single section (Map phase) with token limit handling
         
         Args:
             section_name: Name of the section
@@ -184,6 +225,31 @@ JSON形式で、各項目を詳細に記述してください。
         if len(section_text.strip()) < 50:
             return {"status": "skipped", "reason": "too_short"}
         
+        # Check token count and chunk if necessary
+        token_count = self.count_tokens(section_text)
+        if token_count > 25000:  # Conservative limit for prompt + response
+            print(f"  Large section detected ({token_count:,} tokens), chunking...")
+            chunks = self.chunk_text(section_text, max_tokens=20000)
+            
+            # Analyze each chunk and combine results
+            chunk_results = []
+            for i, chunk in enumerate(chunks):
+                print(f"    Analyzing chunk {i+1}/{len(chunks)}...")
+                result = self._analyze_text_chunk(section_name, chunk)
+                if result.get("status") != "skipped":
+                    chunk_results.append(result)
+            
+            # Combine chunk results
+            if not chunk_results:
+                return {"status": "skipped", "reason": "all_chunks_failed"}
+                
+            return self._combine_chunk_results(section_name, chunk_results)
+        
+        # Normal analysis for smaller sections
+        return self._analyze_text_chunk(section_name, section_text)
+    
+    def _analyze_text_chunk(self, section_name: str, section_text: str) -> Dict:
+        """Analyze a single text chunk"""
         # Get appropriate prompt
         prompt_template = self.SECTION_ANALYSIS_PROMPTS.get(
             section_name, 
@@ -202,8 +268,34 @@ JSON形式で、各項目を詳細に記述してください。
             if content.endswith("```"):
                 content = content[:-3]
             
-            return json.loads(content.strip())
+            # Additional cleanup for common JSON issues
+            content = content.strip()
             
+            # Fix common unterminated string issues
+            if content.count('"') % 2 != 0:
+                # Odd number of quotes - likely unterminated string
+                print(f"  Warning: Possible unterminated string in section '{section_name}', attempting to fix...")
+                # Try to find the last complete JSON object
+                try:
+                    # Find the last complete closing brace
+                    last_brace = content.rfind('}')
+                    if last_brace > 0:
+                        content = content[:last_brace + 1]
+                except:
+                    pass
+            
+            return json.loads(content)
+            
+        except json.JSONDecodeError as e:
+            print(f"  JSON parsing error in section '{section_name}': {e}")
+            print(f"  Content around error: ...{content[max(0, e.pos-50):e.pos+50]}...")
+            # Return a safe fallback structure
+            return {
+                "status": "json_error", 
+                "error": f"JSON parsing failed: {str(e)}",
+                "section": section_name,
+                "fallback_content": content[:500] + "..." if len(content) > 500 else content
+            }
         except Exception as e:
             print(f"  Error analyzing section '{section_name}': {e}")
             return {
@@ -211,6 +303,41 @@ JSON形式で、各項目を詳細に記述してください。
                 "error": str(e),
                 "raw_response": response.content if 'response' in locals() else None
             }
+    
+    def _combine_chunk_results(self, section_name: str, chunk_results: List[Dict]) -> Dict:
+        """Combine results from multiple chunks of the same section"""
+        combined = {
+            "status": "combined",
+            "section_name": section_name,
+            "chunk_count": len(chunk_results),
+            "combined_analysis": {}
+        }
+        
+        # Collect all keys from chunk results
+        all_keys = set()
+        for chunk in chunk_results:
+            if isinstance(chunk, dict):
+                all_keys.update(chunk.keys())
+        
+        # Remove meta keys
+        meta_keys = {'status', 'error', 'section', 'fallback_content', 'raw_response'}
+        analysis_keys = all_keys - meta_keys
+        
+        # Combine content for each key
+        for key in analysis_keys:
+            values = []
+            for chunk in chunk_results:
+                if key in chunk and chunk[key]:
+                    values.append(str(chunk[key]))
+            
+            if values:
+                # Join multiple values with appropriate separators
+                if len(values) == 1:
+                    combined["combined_analysis"][key] = values[0]
+                else:
+                    combined["combined_analysis"][key] = " | ".join(values)
+        
+        return combined
     
     def synthesize_to_ochiai_format(
         self, 
@@ -229,8 +356,26 @@ JSON形式で、各項目を詳細に記述してください。
         Returns:
             OchiaiFormatAdvanced object
         """
-        # Prepare section analyses text
-        analyses_text = json.dumps(section_analyses, ensure_ascii=False, indent=2)
+        # Prepare section analyses text, filtering out error sections
+        filtered_analyses = {}
+        error_sections = []
+        
+        for section_name, analysis in section_analyses.items():
+            if isinstance(analysis, dict) and analysis.get('status') in ['error', 'json_error']:
+                error_sections.append(section_name)
+                # Use fallback content if available
+                if 'fallback_content' in analysis:
+                    filtered_analyses[section_name] = {
+                        'summary': analysis['fallback_content'][:200] + "...",
+                        'status': 'partial'
+                    }
+            else:
+                filtered_analyses[section_name] = analysis
+        
+        if error_sections:
+            print(f"  Note: {len(error_sections)} sections had parsing errors: {', '.join(error_sections)}")
+        
+        analyses_text = json.dumps(filtered_analyses, ensure_ascii=False, indent=2)
         
         # Create synthesis prompt
         prompt = self.OCHIAI_SYNTHESIS_PROMPT.format(

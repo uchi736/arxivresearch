@@ -55,12 +55,16 @@ def search_arxiv_papers(query: SearchQuery) -> List[PaperMetadata]:
 
     results = []
     for result in search.results():
+        # Standardize URL format to HTTPS with .pdf extension
+        arxiv_id = result.entry_id.split('/')[-1]
+        standardized_pdf_url = f'https://arxiv.org/pdf/{arxiv_id}.pdf'
+        
         paper_meta = PaperMetadata(
             title=result.title,
             authors=[author.name for author in result.authors],
             abstract=result.summary,
-            arxiv_id=result.entry_id.split('/')[-1],
-            pdf_url=result.pdf_url,
+            arxiv_id=arxiv_id,
+            pdf_url=standardized_pdf_url,
             published_date=result.published.isoformat(),
             categories=result.categories,
         )

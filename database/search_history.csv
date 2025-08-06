@@ -1,0 +1,2 @@
+﻿query,executed_at,papers_found,papers_new,papers_skipped,papers_analyzed,execution_time,analysis_mode
+GraphRAG,2025-08-06T19:28:18.923886,1,1,0,1,114,moderate

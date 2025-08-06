@@ -11,7 +11,10 @@ import tempfile
 import os
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
-import PyPDF2
+try:
+    import pypdf as PyPDF2
+except ImportError:
+    import PyPDF2
 import tiktoken
 
 from src.core.models import PaperMetadata

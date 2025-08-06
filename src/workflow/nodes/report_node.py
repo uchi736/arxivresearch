@@ -29,14 +29,25 @@ def generate_advanced_report_node(state: AdvancedAgentState, container: AppConta
     tracker.start_step("レポート生成")
     
     # Build final report
-    final_report = f"""# arXiv論文調査レポート（全文解析版）
+    report_parts = [f"""# arXiv論文調査レポート（全文解析版）"""]
 
+    # Add executive summary if available
+    if state.get("exec_summary"):
+        summary = state["exec_summary"]
+        report_parts.append(f"""
+## エグゼクティブサマリー
+{summary.summary_md}
+""")
+
+    report_parts.append(f"""
 ## 調査概要
 - **クエリ**: {state['initial_query']}
 - **分析モード**: {state['analysis_mode']}
 - **分析論文数**: {len(state['analyzed_papers'])}
 - **総トークン使用量**: {sum(p.get('tokens_used', 0) for p in state['analyzed_papers'])}
-"""
+""")
+    
+    final_report = "".join(report_parts)
     
     # Add detailed information for each paper
     for paper in state["analyzed_papers"]:

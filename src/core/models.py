@@ -18,11 +18,14 @@ class AdvancedAgentState(TypedDict):
     search_queries: List[Dict]
     found_papers: List[Dict]
     analyzed_papers: List[Dict]
+    exec_summary: Optional["ExecSummary"]
     final_report: str
     token_budget: int
     analysis_mode: str
     total_tokens_used: int
     progress_tracker: Optional[Dict]  # Progress tracking information
+    paper_format: Optional[str]  # Paper processing format: "auto", "html", "pdf"
+    num_papers: Optional[int]
 
 
 # --- Data Classes ---
@@ -114,6 +117,12 @@ class ImprovedResearchPlan(BaseModel):
     # Metadata
     confidence_score: float = Field(ge=0.0, le=1.0, default=0.8, description="Confidence in the plan")
     plan_reasoning: str = Field(default="", description="Reasoning behind the plan")
+
+
+class ExecSummary(BaseModel):
+    """Executive summary generated from multiple analysis results."""
+    summary_md: str  # Markdown formatted summary
+    created_at: datetime  # Timestamp of generation
 
 
 class OchiaiFormatAdvanced(BaseModel):

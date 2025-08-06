@@ -41,6 +41,13 @@ TECH_TERMS_DICT = {
     "マルチエージェント": ["multi-agent", "multi-agent system", "MAS"],
     "エージェント評価": ["agent evaluation", "AI agent assessment", "agent benchmark"],
     
+    # RAG & Graph RAG terms (NEW)
+    "RAG": ["retrieval augmented generation", "RAG", "retrieval-augmented generation"],
+    "GraphRAG": ["GraphRAG", "Graph RAG", "graph-based retrieval augmented generation"],
+    "グラフRAG": ["GraphRAG", "Graph RAG", "graph-based RAG"],
+    "検索拡張生成": ["retrieval augmented generation", "RAG"],
+    "知識グラフ": ["knowledge graph", "knowledge graphs", "KG"],
+    
     # Robotics/Control
     "ロボット工学": ["robotics", "robot engineering"],
     "制御理論": ["control theory", "control systems"],
@@ -67,6 +74,38 @@ TECH_TERMS_DICT = {
     "クラウドコンピューティング": ["cloud computing"],
 }
 
+# English technical terms and their expansions
+ENGLISH_TECH_TERMS_DICT = {
+    # AI/ML terms
+    "GraphRAG": ["GraphRAG", "Graph RAG", "graph-based retrieval augmented generation", "knowledge graph RAG"],
+    "RAG": ["retrieval augmented generation", "RAG", "retrieval-augmented generation", "document retrieval"],
+    "LLM": ["large language model", "LLM", "language model", "generative language model"],
+    "Transformer": ["transformer", "transformer architecture", "attention mechanism", "self-attention"],
+    "BERT": ["BERT", "bidirectional encoder representations", "transformer encoder"],
+    "GPT": ["GPT", "generative pre-trained transformer", "autoregressive language model"],
+    
+    # Graph/Network terms
+    "GNN": ["graph neural network", "GNN", "graph neural networks", "network embedding"],
+    "Graph": ["graph", "network", "knowledge graph", "graph structure", "graph-based"],
+    "Knowledge Graph": ["knowledge graph", "KG", "semantic network", "entity-relation graph"],
+    
+    # Agent terms
+    "Agent": ["agent", "AI agent", "intelligent agent", "autonomous agent", "software agent"],
+    "Multi-Agent": ["multi-agent", "multi-agent system", "MAS", "agent coordination"],
+    
+    # Evaluation terms
+    "Evaluation": ["evaluation", "assessment", "benchmark", "metric", "performance evaluation"],
+    "Benchmark": ["benchmark", "evaluation benchmark", "standardized test", "performance metric"],
+    
+    # Retrieval terms
+    "Retrieval": ["retrieval", "information retrieval", "document retrieval", "passage retrieval"],
+    "Embedding": ["embedding", "vector embedding", "representation learning", "dense representation"],
+    
+    # Generation terms
+    "Generation": ["generation", "text generation", "content generation", "language generation"],
+    "Summarization": ["summarization", "text summarization", "document summarization", "abstractive summarization"],
+}
+
 
 class ResearchPlanner:
     """Unified research planner with enhanced capabilities"""
@@ -89,6 +128,30 @@ class ResearchPlanner:
         for ja_term, en_terms in TECH_TERMS_DICT.items():
             if ja_term in query_lower:
                 found_terms[ja_term] = en_terms
+        
+        return found_terms
+    
+    def extract_english_tech_terms(self, query: str) -> Dict[str, List[str]]:
+        """Extract and expand English technical terms from query"""
+        found_terms = {}
+        query_lower = query.lower()
+        
+        # Check for exact matches and partial matches
+        for en_term, expansions in ENGLISH_TECH_TERMS_DICT.items():
+            term_lower = en_term.lower()
+            
+            # Exact match or case-insensitive match
+            if term_lower in query_lower or en_term in query:
+                found_terms[en_term] = expansions
+                continue
+            
+            # Check for partial matches (for compound terms)
+            words_in_query = query_lower.split()
+            term_words = term_lower.split()
+            
+            # If all words of the term are found in query
+            if all(word in query_lower for word in term_words):
+                found_terms[en_term] = expansions
         
         return found_terms
     
@@ -173,10 +236,13 @@ class ResearchPlanner:
         # Detect language
         query_language = self.detect_language(query)
         
-        # Extract technical terms if Japanese
+        # Extract technical terms for both languages
         tech_terms = {}
         if query_language == "ja":
             tech_terms = self.extract_tech_terms(query)
+        else:
+            # English queries also get term expansion
+            tech_terms = self.extract_english_tech_terms(query)
         
         # Determine analysis parameters
         analysis_depth = self.determine_analysis_depth(query) if "moderate" in analysis_mode else analysis_mode.split("_")[-1]
@@ -207,10 +273,13 @@ class ResearchPlanner:
         # Detect language
         query_language = self.detect_language(query)
         
-        # Extract technical terms if Japanese
+        # Extract technical terms for both languages
         tech_terms = {}
         if query_language == "ja":
             tech_terms = self.extract_tech_terms(query)
+        else:
+            # English queries also get term expansion
+            tech_terms = self.extract_english_tech_terms(query)
         
         # Determine analysis parameters
         analysis_depth = self.determine_analysis_depth(query) if "moderate" in analysis_mode else analysis_mode.split("_")[-1]
@@ -240,9 +309,14 @@ class ResearchPlanner:
         
         tech_terms_str = ""
         if tech_terms:
-            tech_terms_str = "\n既に識別された技術用語:\n"
-            for ja_term, en_terms in tech_terms.items():
-                tech_terms_str += f"- {ja_term}: {', '.join(en_terms)}\n"
+            if language == "ja":
+                tech_terms_str = "\n既に識別された技術用語:\n"
+                for ja_term, en_terms in tech_terms.items():
+                    tech_terms_str += f"- {ja_term}: {', '.join(en_terms)}\n"
+            else:
+                tech_terms_str = "\nIdentified technical terms and their expansions:\n"
+                for en_term, expansions in tech_terms.items():
+                    tech_terms_str += f"- {en_term}: {', '.join(expansions)}\n"
         
         # Check if this is an AI agent evaluation query
         is_agent_eval = any(term in query.lower() for term in ["エージェント", "agent", "評価", "evaluation", "assessment"])
@@ -288,12 +362,14 @@ Please provide a research plan in the following JSON format:
 }}
 
 CRITICAL GUIDELINES:
-1. If the query is in Japanese, provide accurate technical translations
-2. BE DOMAIN-SPECIFIC - avoid generic terms that match unrelated fields
-3. For AI/agent queries: use "agent evaluation", "AI benchmark", NOT "performance metrics"
-4. Include both general and specific search terms within the target domain
-5. Select appropriate arXiv categories based on the topic
-6. Explain your reasoning for the research strategy"""
+1. For Japanese queries, provide accurate technical translations
+2. For English queries, expand technical terms with related concepts and synonyms
+3. BE DOMAIN-SPECIFIC - avoid generic terms that match unrelated fields
+4. For AI/agent queries: use "agent evaluation", "AI benchmark", NOT "performance metrics"
+5. Use the provided technical term expansions to create comprehensive search queries
+6. Include both general and specific search terms within the target domain
+7. Select appropriate arXiv categories based on the topic
+8. Explain your reasoning for the research strategy"""
 
         return prompt
     

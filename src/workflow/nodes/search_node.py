@@ -80,7 +80,21 @@ def search_papers_node(state: AdvancedAgentState, container: AppContainer):
     unique_papers = remove_duplicates_smart(time_filtered)
     logger.debug(f"重複除去後: {len(unique_papers)}件")
     
-    # 4. Relevance scoring (if improved plan available)
+    # 4. Registry-based filtering (skip already analyzed papers)
+    if state.get("skip_analyzed") and state.get("registry"):
+        registry = state["registry"]
+        # Convert to dict format for registry filtering
+        papers_dicts = [paper.model_dump() for paper in unique_papers]
+        filtered_papers_dicts = registry.filter_new_papers(papers_dicts)
+        
+        # Convert back to PaperMetadata objects
+        unique_papers = [PaperMetadata.parse_obj(paper_dict) for paper_dict in filtered_papers_dicts]
+        
+        # Store original count for history tracking
+        state["original_papers_found"] = len(time_filtered)
+        logger.debug(f"レジストリフィルタ後: {len(unique_papers)}件（{len(time_filtered) - len(unique_papers)}件をスキップ）")
+    
+    # 5. Relevance scoring (if improved plan available)
     if improved_plan:
         logger.debug("\n--- 関連性スコアリング中 ---")
         scorer = container.relevance_scorer

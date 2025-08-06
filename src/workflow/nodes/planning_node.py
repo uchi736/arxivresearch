@@ -17,7 +17,7 @@ from .base import (
 def plan_research_advanced_node(state: AdvancedAgentState, container: AppContainer):
     """Advanced research planning node with improved multilingual support"""
     logger.info("--- 高度な調査計画を策定中 ---")
-    
+    logger.debug(f"[PLANNING] Starting at {time.strftime('%H:%M:%S')}")
     
     # Get current model config
     model_config = container.config.model
@@ -84,6 +84,12 @@ def plan_research_advanced_node(state: AdvancedAgentState, container: AppContain
             "language": improved_plan.query_language,
             "translated": improved_plan.translated_query != improved_plan.original_query
         })
+
+        # Override num_papers if provided in the state
+        if state.get("num_papers") is not None:
+            logger.info(f"CLIで指定された論文数 ({state['num_papers']}) を使用します。")
+            improved_plan.num_papers = state["num_papers"]
+            plan.num_papers = state["num_papers"]
         
         # Store both plans for use in subsequent nodes
         return {

@@ -13,6 +13,7 @@ from .processing_node import advanced_fulltext_processing_node
 from .structured_analysis_node import structured_analysis_node
 from .report_node import generate_advanced_report_node
 from .save_node import save_results_node
+from .exec_summary_node import exec_summary_node
 
 __all__ = [
     'plan_research_advanced_node',
@@ -21,6 +22,7 @@ __all__ = [
     'translate_pdfs_node',
     'advanced_fulltext_processing_node',
     'structured_analysis_node',
+    'exec_summary_node',
     'generate_advanced_report_node',
     'save_results_node',
 ]

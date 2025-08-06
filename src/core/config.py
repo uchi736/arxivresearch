@@ -28,6 +28,17 @@ class ModelConfig(BaseModel):
     use_vertex_ai: bool = Field(default=True)  # Use Vertex AI by default
     vertex_ai_project: Optional[str] = Field(default=None)
     vertex_ai_location: str = Field(default="asia-northeast1")  # 東京リージョンで動作確認済み
+
+
+class ProcessingConfig(BaseModel):
+    """Configuration for paper processing"""
+    # Paper format preference
+    paper_format: Literal["auto", "html", "pdf"] = Field(default="auto")
+    prefer_html: bool = Field(default=True)  # Prefer HTML for faster processing
+    
+    # URL format settings
+    use_https: bool = Field(default=True)  # Use HTTPS for all arXiv URLs
+    include_pdf_extension: bool = Field(default=True)  # Include .pdf in URLs
     # 高速分析の設定
     use_fast_analysis: bool = Field(default=True)  # 高速分析モードを有効化
     fast_analysis_model: str = Field(default="gemini-2.5-flash")  # 高速モデル
@@ -130,6 +141,14 @@ def create_llm_model(creative: bool = False):
     if model_config.use_vertex_ai:
         try:
             from langchain_google_vertexai import ChatVertexAI
+            import os
+            
+            # Explicitly set project ID to avoid Cloud Resource Manager API calls
+            if model_config.vertex_ai_project:
+                os.environ["GOOGLE_CLOUD_PROJECT"] = model_config.vertex_ai_project
+                # Disable automatic project ID detection to avoid Resource Manager API
+                os.environ["GOOGLE_CLOUD_DISABLE_GRPC"] = "false"
+            
             logger.debug(f"Initializing Vertex AI with project={model_config.vertex_ai_project}, location={model_config.vertex_ai_location}")
             llm = ChatVertexAI(
                 project=model_config.vertex_ai_project,

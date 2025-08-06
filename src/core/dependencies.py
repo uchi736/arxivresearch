@@ -77,3 +77,11 @@ def get_container() -> AppContainer:
     """
     logger.info("Accessing global AppContainer instance.")
     return AppContainer()
+
+def clear_container_cache():
+    """
+    Clear the cached AppContainer instance.
+    Useful for resetting state between runs.
+    """
+    logger.info("Clearing AppContainer cache.")
+    get_container.cache_clear()

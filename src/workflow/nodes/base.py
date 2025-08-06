@@ -12,7 +12,22 @@ from src.utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Paper memories storage - shared across nodes for a single workflow execution
-paper_memories: Dict[str, PaperMemory] = {}
+# Use a function to get/reset the storage to avoid global state issues
+_paper_memories: Dict[str, PaperMemory] = {}
+
+def get_paper_memories() -> Dict[str, PaperMemory]:
+    """Get the paper memories storage"""
+    global _paper_memories
+    return _paper_memories
+
+def clear_paper_memories():
+    """Clear the paper memories storage - should be called at workflow start"""
+    global _paper_memories
+    logger.debug(f"Clearing paper memories (had {len(_paper_memories)} entries)")
+    _paper_memories.clear()
+
+# For backward compatibility
+paper_memories = get_paper_memories()
 
 
 def get_progress_tracker(state: AdvancedAgentState) -> ProgressTracker:

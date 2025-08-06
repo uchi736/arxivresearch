@@ -10,21 +10,25 @@ arXiv論文を検索・分析するAIエージェントシステム。日本語�
 
 ## よく使うコマンド
 ```bash
+# 重複スキップ付き分析（推奨・効率的）
+python cli_app.py search "研究クエリ" --skip-analyzed
+
+# 分析済み論文管理
+python cli_app.py registry list --limit 10
+python cli_app.py registry search "キーワード" --limit 5
+python cli_app.py registry stats --days 30
+
 # 簡易デモ実行（LangGraphなし、高速）
 python simple_demo.py "AIエージェントの評価"
 
-# 限定デモ（検索とスコアリングのみ）
-python test_ai_agent_limited.py
-
-# Gemini分析テスト
-python test_gemini_quick.py
-
 # メインアプリ（LangGraph使用）
-python cli_app.py "研究クエリ"
+python cli_app.py search "研究クエリ"
 ```
 
 ## 主要ファイル
 - `simple_demo.py` - デバッグ用の簡易版（推奨）
+- `src/registry/` - CSV論文管理システム（新機能）
+- `database/analyzed_papers.csv` - 分析済み論文DB
 - `src/analysis/ochiai_structured_analyzer.py` - Pydantic構造化出力
 - `src/analysis/gemini_map_reduce_analyzer.py` - Gemini分析
 - `src/core/research_planner.py` - 研究計画生成（40秒程度かかる）

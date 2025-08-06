@@ -20,6 +20,7 @@ from .base import (
 )
 
 from src.analysis.simple_pdf_processor import SimplePDFProcessor
+from src.analysis.unified_processor import UnifiedPaperProcessor
 
 
 
@@ -60,14 +61,18 @@ def advanced_fulltext_processing_node(state: AdvancedAgentState, container: AppC
                           {"completed_items": i})
         
         try:
-            # Download and extract PDF
-            processor = container.pdf_processor
-            pdf_data = processor.process_paper(paper["pdf_url"])
+            # Use unified processor with format preference
+            paper_format = state.get("paper_format", "auto")
+            processor = UnifiedPaperProcessor(prefer_html=True)
+            pdf_data = processor.process_paper(paper["arxiv_id"], format_preference=paper_format)
             if not pdf_data:
                 logger.debug("  → PDF処理失敗、スキップ")
                 continue
             
             # Save full text directly to paper memory
+            # Get full text from unified processor result
+            full_text = pdf_data.get("text", pdf_data.get("full_text", ""))
+            
             paper_memory = PaperMemory(
                 paper_id=paper["arxiv_id"],
                 sections={},
@@ -75,7 +80,7 @@ def advanced_fulltext_processing_node(state: AdvancedAgentState, container: AppC
                 chunks=[],
                 coverage_map={},
                 token_budget_used=0,
-                full_text=pdf_data["full_text"]  # Store full text for Map-Reduce analysis
+                full_text=full_text  # Store full text for Map-Reduce analysis
             )
             
             paper_memories[paper["arxiv_id"]] = paper_memory
